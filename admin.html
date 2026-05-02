@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Zyro Commander | Control Panel</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
+        .panel { border: 1px solid #333; padding: 20px; max-width: 500px; margin: auto; border-radius: 8px; box-shadow: 0 0 20px rgba(0,255,65,0.1); }
+        h2 { text-align: center; font-size: 14px; letter-spacing: 5px; color: #fff; }
+        .group { margin-bottom: 20px; }
+        label { display: block; font-size: 10px; margin-bottom: 5px; color: #888; }
+        input { width: 100%; padding: 8px; background: #1a1a1a; border: 1px solid #333; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; margin-top: 5px; cursor: pointer; background: #00ff41; border: none; color: #000; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #fff; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h2>ZYRO COMMANDER v1.0</h2>
+    
+    <div class="group">
+        <label>UPDATE JUDUL</label>
+        <input type="text" id="judulInput" placeholder="Ketik judul baru...">
+        <button onclick="sendCommand('/judul ' + document.getElementById('judulInput').value)">SEND JUDUL</button>
+    </div>
+
+    <div class="group">
+        <label>SPAWN PHOTO (URL)</label>
+        <input type="text" id="imgInput" placeholder="https://...">
+        <button onclick="sendCommand('/spawn ' + document.getElementById('imgInput').value)">SPAWN IMAGE</button>
+    </div>
+
+    <div class="group">
+        <label>PHOTO CAPTION</label>
+        <input type="text" id="capInput" placeholder="Ketik caption foto...">
+        <button onclick="sendCommand('/cap ' + document.getElementById('capInput').value)">UPDATE CAPTION</button>
+    </div>
+
+    <div class="group">
+        <label>VISUAL OVERRIDE</label>
+        <div class="grid">
+            <button onclick="sendCommand('/gold')" style="background: #ffd700;">GOLD MODE</button>
+            <button onclick="sendCommand('/shake')" style="background: #ff4141;">SHAKE FX</button>
+            <button onclick="sendCommand('/dark')" style="background: #444; color: #fff;">DARK MODE</button>
+            <button onclick="sendCommand('/reset')" style="background: #fff; color: #000;">RESET ALL</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    function sendCommand(cmd) {
+        socket.emit('chat message', cmd);
+        console.log('Sent:', cmd);
+    }
+</script>
+</body>
+</html>

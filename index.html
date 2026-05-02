@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Daily Memoir 🌌</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:italic,wght@300;400;500&family=Montserrat:wght@100;200;300;400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sky-top: #ff7e5f;
+            --sky-bottom: #feb47b;
+            --sun-core: #ffffff;
+            --sun-glow: #fff8e1;
+            --text-main: rgba(255, 255, 255, 0.9);
+            --text-sub: rgba(255, 255, 255, 0.5);
+            --content-blur: blur(0px);
+            --card-base: #fffcf9;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background: linear-gradient(to bottom, var(--sky-top) 0%, var(--sky-bottom) 100%);
+            color: #fff; font-family: 'Montserrat', sans-serif;
+            overflow: hidden; touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none; transition: background 3s ease;
+        }
+
+        .ghost-star {
+            position: fixed; width: 4px; height: 4px; background: #fff;
+            border-radius: 50%; box-shadow: 0 0 15px #fff;
+            pointer-events: none; z-index: 9; opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .branch-hint {
+            position: fixed; top: 20%; font-size: 8px; letter-spacing: 5px;
+            text-transform: uppercase; opacity: 0; transition: 0.5s;
+            color: var(--text-sub); z-index: 100; pointer-events: none;
+        }
+
+        .sky-fix {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; z-index: 0;
+            transition: opacity 5s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+        .sky-fix.active { opacity: 1; }
+
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%);
+            z-index: 5; pointer-events: none; transition: opacity 0.5s;
+        }
+
+        .grain {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://upload.wikimedia.org/wikipedia/commons/7/76/1k_Noisy_Texture.png');
+            opacity: 0.04; z-index: 6; pointer-events: none;
+            mix-blend-mode: color-burn;
+        }
+
+        canvas { position: fixed; top: 0; left: 0; z-index: 1; }
+
+        .setting-sun {
+            position: fixed; bottom: -50px; left: 50%;
+            transform: translateX(-50%);
+            width: clamp(200px, 40vw, 350px);
+            height: clamp(200px, 40vw, 350px);
+            background: radial-gradient(circle, var(--sun-core) 0%, var(--sun-glow) 60%, transparent 100%);
+            border-radius: 50%; z-index: 2;
+            filter: blur(5px); box-shadow: 0 0 100px rgba(255, 200, 100, 0.5);
+            cursor: pointer; transition: all 3s cubic-bezier(0.2, 0, 0.2, 1); outline: none;
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+
+        .scan-line {
+            position: absolute; width: 100%; height: 2px;
+            background: rgba(255, 0, 0, 0.5); box-shadow: 0 0 15px red;
+            top: 0; left: 0; display: none; z-index: 3;
+        }
+
+        @keyframes pulseCall {
+            0% { transform: translateX(-50%) scale(1); opacity: 1; }
+            50% { transform: translateX(-50%) scale(1.15); opacity: 0.7; box-shadow: 0 0 150px rgba(255, 255, 255, 0.8); }
+            100% { transform: translateX(-50%) scale(1); opacity: 1; }
+        }
+
+        .content {
+            position: relative; z-index: 10;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            height: 100vh; text-align: center; padding: 0 50px;
+            pointer-events: none; backdrop-filter: var(--content-blur);
+            transition: opacity 1.5s ease;
+        }
+
+        .date-meta {
+            font-size: 8px; letter-spacing: 6px;
+            text-transform: uppercase; color: var(--text-sub);
+            margin-bottom: 2.5rem; font-weight: 300; transition: color 1s;
+        }
+
+        h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(1.5rem, 5vw, 2.2rem);
+            font-weight: 400; font-style: italic;
+            line-height: 1.4; margin: 0;
+            color: var(--text-main); opacity: 0;
+            animation: fadeInPuitis 1.5s forwards 0.5s;
+            transition: opacity 1s ease, color 2s ease, filter 0.5s ease;
+        }
+
+        .line-separator {
+            width: 50px; height: 1px;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+            margin: 3rem 0;
+        }
+
+        .deep-text {
+            font-size: 11px; font-weight: 200;
+            line-height: 2.4; color: var(--text-sub);
+            max-width: 280px; letter-spacing: 1px;
+            font-style: italic; opacity: 0;
+            animation: fadeInPuitis 2s forwards 1s;
+            transition: opacity 1s ease, filter 0.5s ease;
+        }
+
+        #greetingCard {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -46%) scale(0.92);
+            width: 290px; height: 430px;
+            background: var(--card-base);
+            background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png');
+            z-index: 100; opacity: 0; visibility: hidden;
+            transition: all 2.8s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 50px 100px rgba(0,0,0,0.6), inset 0 0 80px rgba(0,0,0,0.03);
+            display: flex; flex-direction: column;
+            justify-content: space-between; align-items: center;
+            padding: 50px 30px; border-radius: 2px;
+        }
+
+        #greetingCard::before {
+            content: ''; position: absolute; top: 12px; left: 12px; right: 12px; bottom: 12px;
+            border: 0.5px solid rgba(0,0,0,0.08); pointer-events: none;
+        }
+
+        #greetingCard.show {
+            opacity: 1; visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .card-label {
+            font-size: 7px; letter-spacing: 5px; color: #a1a1a1;
+            text-transform: uppercase; font-weight: 400;
+        }
+        
+        .card-msg-container {
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; gap: 20px; flex-grow: 1; width: 100%;
+        }
+
+        .lyric-box { 
+            font-family: 'Montserrat', sans-serif; font-size: 9px;
+            letter-spacing: 2px; color: #b1b1b1; text-transform: uppercase;
+            min-height: 30px; transition: opacity 0.8s ease; text-align: center;
+        }
+
+        .personal-box { 
+            font-family: 'Cormorant Garamond', serif; font-size: 19px; 
+            font-style: italic; color: #333; line-height: 1.6; 
+            min-height: 80px; transition: opacity 1.2s ease;
+            text-align: center; font-weight: 400;
+        }
+
+        .card-footer-wrap {
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+        }
+
+        .card-line { width: 30px; height: 0.5px; background: rgba(0,0,0,0.1); }
+
+        .close-card { 
+            font-size: 8px; letter-spacing: 4px; 
+            color: #ccc; cursor: pointer; 
+            text-transform: uppercase; transition: 0.6s ease;
+        }
+        .close-card:hover { color: #333; letter-spacing: 5px; }
+
+        .typing::after { content: '|'; animation: blink 0.7s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes fadeInPuitis {
+            from { opacity: 0; filter: blur(10px); transform: translateY(15px); }
+            to { opacity: 1; filter: blur(0); transform: translateY(0); }
+        }
+
+        .memoir-active { animation: memoirReveal 8s cubic-bezier(0.2, 0, 0.2, 1) forwards; }
+        @keyframes memoirReveal {
+            0% { filter: blur(0) contrast(1); }
+            30% { filter: blur(2px) contrast(1.2) brightness(1.1) sepia(0.3); }
+            100% { filter: blur(0) contrast(1.1) brightness(1.05) sepia(0.1); }
+        }
+
+        #flowerStage {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200; display: none; text-align: center;
+            width: 100%;
+        }
+
+        #flowerIcon {
+            width: 90px; height: 90px; margin: 0 auto; cursor: pointer;
+            filter: drop-shadow(0 0 15px rgba(255,182,193,0.6));
+            transition: 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #photoFrame {
+            display: none; opacity: 0;
+            transition: opacity 1.5s ease;
+            text-align: center;
+        }
+
+        .photo-wrapper {
+            background: #fff; padding: 12px 12px 45px 12px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            transform: rotate(-3deg); border-radius: 2px;
+            display: inline-block; position: relative;
+            margin-bottom: 20px;
+        }
+
+        .target-img {
+            width: 230px; height: 290px; object-fit: cover;
+            border: 1px solid #eee; display: block;
+        }
+
+        .photo-cap {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic; font-size: 17px;
+            color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+            max-width: 280px; margin: 15px auto 25px auto;
+            line-height: 1.6;
+        }
+
+        .final-btn {
+            display: inline-block;
+            padding: 12px 30px; background: #fff; color: #333;
+            font-size: 9px; letter-spacing: 4px;
+            text-transform: uppercase; border-radius: 50px;
+            cursor: pointer; font-weight: bold;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            transition: 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sky-fix" id="newSky"></div>
+    <div class="grain" id="grainFilter"></div>
+    <div class="overlay" id="vignetteOverlay"></div>
+    <canvas id="dustCanvas"></canvas>
+    <div class="setting-sun" id="theSun"><div class="scan-line" id="scanner"></div></div>
+
+    <div id="branchHint" class="branch-hint"></div>
+    <div id="ownerGhost" class="ghost-star"></div>
+
+    <div class="content" id="mainWrapper">
+        <div class="date-meta" id="timeTag">Observation</div>
+        <h1 id="mainTitle">...</h1>
+        <div class="line-separator"></div>
+        <p class="deep-text" id="randomQuote">...</p>
+    </div>
+
+    <div id="greetingCard">
+        <div class="card-label" id="cardLabel">Memoir</div>
+        <div class="card-msg-container">
+            <div id="lyricBox" class="lyric-box"></div>
+            <div id="personalBox" class="personal-box"></div>
+        </div>
+        <div class="card-footer-wrap">
+            <div class="card-line"></div>
+            <div class="close-card" onclick="closeCard()">— Close Memoir —</div>
+        </div>
+    </div>
+
+    <div id="flowerStage">
+        <div id="flowerIcon">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="12" fill="#FFFACD" />
+                <path fill="#FFB6C1" d="M50 35 Q60 10 70 35 T50 50 T30 35 Q40 10 50 35" />
+                <path fill="#FFB6C1" d="M65 50 Q90 60 65 70 T50 50 T65 30 Q90 40 65 50" />
+                <path fill="#FFB6C1" d="M50 65 Q40 90 30 65 T50 50 T70 65 Q60 90 50 65" />
+                <path fill="#FFB6C1" d="M35 50 Q10 40 35 30 T50 50 T35 70 Q10 60 35 50" />
+            </svg>
+        </div>
+        <div id="photoFrame">
+            <div class="photo-wrapper">
+                <img src="https://i.ibb.co.com/VcYtBGFS/Picsart-26-05-02-14-41-07-579.png" class="target-img" id="targetImage">
+            </div>
+            <p class="photo-cap" id="targetCap">"Senja selalu punya cara untuk pamit, tapi rindu ini punya cara untuk menetap. Terima kasih sudah jadi jingga yang tak pernah luntur di langitku."</p>
+            <div class="final-btn" onclick="startConstellation()">— Connect to the Stars —</div>
+        </div>
+    </div>
+
+    <audio id="bgMusic" loop preload="auto">
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-17.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="allOfMe" preload="auto">
+        <source src="https://files.catbox.moe/lbdcbj" type="audio/mp4">
+    </audio>
+
+    <script>
+        const now = new Date();
+        const hour = now.getHours();
+        const getRandom = (max) => Math.floor(Math.random() * max);
+        
+        let titleIdx = getRandom(3);
+        let quoteIdx = getRandom(3);
+        let afterIdx = getRandom(3);
+        
+        let starMultiplier = 1; 
+        let config = {};
+        let mouse = { x: 0, y: 0 };
+        let idleTime = 0;
+        let sessionSecs = 0;
+        let isFinalStage = false;
+        const targetName = "ACA"; 
+
+        const songTimeline = [
+            { start: 0, text: "I love u more... <br> dengerin liriknya ya.", type: "personal" },
+            { start: 5.0, text: "♫ <br> What would I do without your smart mouth?", type: "lyric" },
+            { start: 8.0, text: "♫ <br> Drawing me in, and you kicking me out.", type: "lyric" },
+            { start: 10.0, text: "Hari ini, aku ingin kau membaca setiap kata yang muncul.", type: "personal" },
+            { start: 14.5, text: "Ingat saat kita pertama kali saling menyapa?", type: "personal" },
+            { start: 15.0, text: "♫ <br> You've got my head spinning, no kidding.", type: "lyric" },
+            { start: 20.5, text: "Dan semua hal yang pernah kita lalui bersama?", type: "personal" },
+            { start: 20.0, text: "♫ <br> I can't pin you down.", type: "lyric" },
+            { start: 23.5, text: "Aku sering bertanya-tanya, apa yang membuatmu begitu istimewa.", type: "personal" },
+            { start: 23.5, text: "♫ <br> What's going on in that beautiful mind?", type: "lyric" },
+            { start: 27.8, text: "♫ <br> I'm on your magical mystery ride.", type: "lyric" },
+            { start: 30.0, text: "Terimakasih sudah menjadi bagian paling indah di hidup ini.", type: "personal" },
+            { start: 30.0, text: "♫ <br> And I'm so dizzy, don't know what hit me.", type: "lyric" },
+            { start: 35.0, text: "♫ <br> But I'll be alright.", type: "lyric" },
+            { start: 40.0, text: "Kadang dunia terasa terlalu bising, tapi kamu selalu jadi sunyiku.", type: "personal" },
+            { start: 40.8, text: "♫ <br> My head's under water, but I'm breathing fine.", type: "lyric" },
+            { start: 45.0, text: "♫ <br> You're crazy and I'm out of my mind.", type: "lyric" },
+            { start: 50.8, text: "Terima kasih sudah bertahan bersamaku yang rumit ini.", type: "personal" },
+            { start: 53.5, text: "♫ <br> Cause all of me loves all of you.", type: "lyric" },
+            { start: 56.5, text: "♫ <br> Love your curves and all your edges.", type: "lyric" },
+            { start: 60.5, text: "Maaf untuk segala kurangku, terima kasih untuk segala sabarmu.", type: "personal" },
+            { start: 60.5, text: "♫ <br> All your perfect imperfections.", type: "lyric" },
+            { start: 65.5, text: "♫ <br> Give your all to me, I'll give my all to you.", type: "lyric" },
+            { start: 70.5, text: "Kita sudah melewati banyak hal, ya?", type: "personal" },
+            { start: 73.5, text: "♫ <br> You're my end and my beginning.", type: "lyric" },
+            { start: 76.5, text: "♫ <br> Even when I lose, I'm winning.", type: "lyric" },
+            { start: 80.5, text: "Apapun yang terjadi esok, aku ingin kamu tetap di sini.", type: "personal" },
+            { start: 80.5, text: "♫ <br> Give me all of you, I'll give you all of me.", type: "lyric" },
+            { start: 90.0, text: "Dan sekarang, di detik ini...", type: "personal" },
+            { start: 105.0, text: "Happy Anniversary, Sayang! ❤️ <br><br> <span style='font-size:12px; font-weight:300; font-style:normal;'>Terima kasih sudah menjadi rumah untuk hatiku.</span>", type: "surprise" }
+        ];
+
+        const library = {
+            morning: {
+                titles: ["Embun pagi ini <br> <i>adalah sisa rindu tadi malam.</i>", "Cahaya pertama menyentuh bumi, <br> <i>namun kau yang menyentuh hati.</i>", "Pagi yang tenang, <br> <i>seperti caraku mendoakanmu.</i>"],
+                quotes: ["Dinginnya fajar takkan terasa selama hangatmu masih ada dalam ingatan.", "Setiap matahari terbit, aku belajar untuk mencintaimu sekali lagi.", "Semesta memberi kita waktu baru untuk sekadar kembali merindu."],
+                afterTitles: ["Pagi menyambut jiwa yang mencari tenang.", "Terang ini milikmu, dan rindu ini milikku.", "Fajar baru, janji yang sama."],
+                afterQuotes: ["Harapan baru lahir bersama cahaya yang mulai menghangat.", "Terima kasih sudah menjadi alasan fajar ini terasa istimewa.", "Mari jalani hari ini dengan sisa hangat rindu tadi pagi."],
+                bg: "linear-gradient(to bottom, #d6e0f0 0%, #f7f9fc 100%)",
+                afterSky: "linear-gradient(to bottom, #fbc2eb 0%, #a6c1ee 100%)",
+                sun: "radial-gradient(circle, #ffffff 0%, #ffeaa7 70%, transparent 100%)",
+                textColor: "#576574", textSub: "rgba(87, 101, 116, 0.6)"
+            },
+            evening: {
+                titles: ["Seperti matahari senja, <br> <i>perasaanku berpulang padamu.</i>", "Langit jingga ini <br> <i>saksi rindu yang tak sempat terucap.</i>", "Di antara sore dan malam, <br> <i>hanya ada namamu di pikiranku.</i>"],
+                quotes: ["Senja tak pernah menyalahkan awan kelabu saat matahari tenggelam perlahan.", "Warna langit ini adalah caraku merindukanmu tanpa suara.", "Cuma senja yang tahu cara berpamitan tanpa menyakiti."],
+                afterTitles: ["Senja pulang, rindu menetap.", "Cahaya meredup, namun bayangmu menguat.", "Terima kasih sudah menjadi jinggaku hari ini."],
+                afterQuotes: ["Sinar mungkin hilang, tapi rasa ini tetap tinggal di tempatnya.", "Menjelang gelap, kaulah satu-satunya yang ingin kupeluk dalam ingatan.", "Esok kita jemput lagi cahaya yang baru, bersama-sama."],
+                bg: "linear-gradient(to bottom, #ff7e5f 0%, #feb47b 100%)",
+                afterSky: "linear-gradient(to bottom, #e65c00 0%, #f9d423 100%)", 
+                sun: "radial-gradient(circle, #fff 0%, #fff8e1 60%, transparent 100%)",
+                textColor: "rgba(255, 255, 255, 0.9)", textSub: "rgba(255, 255, 255, 0.5)"
+            },
+            night: {
+                titles: ["Bintang bersaksi, <br> <i>malam tak pernah benar-benar sepi.</i>", "Di bawah bulan yang sama, <br> <i>aku menunggumu kembali.</i>", "Gelap ini hanyalah ruang <br> <i>untuk melihatmu lebih terang.</i>"],
+                quotes: ["Di antara gelap, kaulah satu-satunya cahaya yang kupahami.", "Malam kian larut, namun bayangmu kian nyata di sudut mata.", "Semesta terlelap, rindu ini terjaga selamanya."],
+                afterTitles: ["Malam ini semesta bercerita tentangmu.", "Bintang jatuh untuk mendengar doaku.", "Tidurlah dalam dekap hangat ingatan."],
+                afterQuotes: ["Semoga lelapmu membawa tenang, dan mimpimu membawa kita.", "Genggam doaku sebelum kau menutup mata sepenuhnya.", "Malam ini sunyi, tapi hatiku ramai karena namamu."],
+                bg: "linear-gradient(to bottom, #0f0c29 0%, #302b63 100%)",
+                afterSky: "linear-gradient(to bottom, #000000 0%, #0f0c29 100%)",
+                sun: "radial-gradient(circle, #f5f5f5 0%, #cfd8dc 60%, transparent 100%)",
+                textColor: "rgba(255, 255, 255, 0.9)", textSub: "rgba(255, 255, 255, 0.5)"
+            }
+        };
+
+        function setup() {
+            const root = document.documentElement;
+            const timeTag = document.getElementById('timeTag');
+            const mainTitle = document.getElementById('mainTitle');
+            const randomQuote = document.getElementById('randomQuote');
+            const sun = document.getElementById('theSun');
+            const skyFix = document.getElementById('newSky');
+            let current;
+            let tagText;
+            if (hour >= 5 && hour < 15) { current = library.morning; tagText = "Morning Serenity"; } 
+            else if (hour >= 15 && hour < 19) { current = library.evening; tagText = "Golden Hour Memoir"; } 
+            else { current = library.night; tagText = "Midnight Starlight"; }
+            config = current;
+            timeTag.innerText = tagText;
+            document.body.style.background = current.bg;
+            skyFix.style.background = current.afterSky;
+            sun.style.background = current.sun;
+            mainTitle.innerHTML = current.titles[titleIdx];
+            randomQuote.innerText = current.quotes[quoteIdx];
+            root.style.setProperty('--text-main', current.textColor);
+            root.style.setProperty('--text-sub', current.textSub);
+        }
+
+        let lastLyricIdx = -1;
+        let lastPersonalIdx = -1;
+        let isSyncing = false;
+        const OFFSET = -0.3;
+
+        function syncEngine() {
+            if (!isSyncing) return;
+            const audio = document.getElementById('allOfMe');
+            const lyricBox = document.getElementById('lyricBox');
+            const personalBox = document.getElementById('personalBox');
+            const labelEl = document.getElementById('cardLabel');
+            const currentTime = audio.currentTime + OFFSET;
+
+            let currentLyricIdx = -1;
+            let currentPersonalIdx = -1;
+
+            for (let i = 0; i < songTimeline.length; i++) {
+                if (currentTime >= songTimeline[i].start) {
+                    if (songTimeline[i].type === "lyric") {
+                        currentLyricIdx = i;
+                    } else {
+                        currentPersonalIdx = i;
+                    }
+                }
+            }
+
+            if (currentLyricIdx !== -1 && currentLyricIdx !== lastLyricIdx) {
+                lastLyricIdx = currentLyricIdx;
+                lyricBox.style.opacity = '0';
+                setTimeout(() => {
+                    lyricBox.innerHTML = songTimeline[currentLyricIdx].text;
+                    lyricBox.style.opacity = '1';
+                }, 400);
+            }
+
+            if (currentPersonalIdx !== -1 && currentPersonalIdx !== lastPersonalIdx) {
+                lastPersonalIdx = currentPersonalIdx;
+                const item = songTimeline[currentPersonalIdx];
+                personalBox.style.opacity = '0';
+                setTimeout(() => {
+                    personalBox.innerHTML = item.text;
+                    personalBox.style.opacity = '1';
+                    if (item.type === "surprise") {
+                        labelEl.innerText = "Our Anniversary";
+                        labelEl.style.color = "#d4af37";
+                    }
+                }, 400);
+            }
+            requestAnimationFrame(syncEngine);
+        }
+
+        document.getElementById('theSun').addEventListener('click', function() {
+            const scanner = document.getElementById('scanner');
+            scanner.style.display = 'block';
+            let pos = 0;
+            const scanAnim = setInterval(() => {
+                pos += 4; scanner.style.top = pos + '%';
+                if (pos >= 100) { clearInterval(scanAnim); scanner.style.display = 'none'; executeReveal(); }
+            }, 30);
+        }, { once: true });
+
+        function executeReveal() {
+            const musicOld = document.getElementById('bgMusic');
+            const musicNew = document.getElementById('allOfMe');
+            musicOld.play(); 
+            musicNew.play().then(() => { musicNew.pause(); musicNew.volume = 0; musicNew.currentTime = 0; });
+            document.getElementById('newSky').classList.add('active');
+            starMultiplier = 3; 
+            const title = document.getElementById('mainTitle');
+            const deepP = document.getElementById('randomQuote');
+            title.style.opacity = '0'; deepP.style.opacity = '0';
+            setTimeout(() => {
+                title.style.opacity = '1'; deepP.style.opacity = '1';
+                typeWriter(title, config.afterTitles[afterIdx], 70, () => {
+                    setTimeout(() => {
+                        document.getElementById('mainWrapper').style.opacity = '0';
+                        document.getElementById('greetingCard').classList.add('show');
+                        let volOut = 1.0;
+                        let fadeOut = setInterval(() => {
+                            if (volOut > 0.02) { volOut -= 0.02; musicOld.volume = volOut; } 
+                            else { musicOld.pause(); clearInterval(fadeOut); }
+                        }, 100);
+                        musicNew.play();
+                        let volIn = 0;
+                        let fadeIn = setInterval(() => { 
+                            if(volIn < 0.6) { volIn += 0.02; musicNew.volume = volIn; } else { clearInterval(fadeIn); }
+                        }, 150);
+                        isSyncing = true; requestAnimationFrame(syncEngine);
+                    }, 2500);
+                });
+                deepP.innerText = config.afterQuotes[afterIdx];
+            }, 1500);
+            document.getElementById('mainWrapper').classList.add('memoir-active');
+        }
+
+        function typeWriter(element, text, speed = 100, callback) {
+            element.innerHTML = ""; element.classList.add('typing');
+            let i = 0;
+            function type() {
+                if (i < text.length) { element.innerHTML += text.charAt(i); i++; setTimeout(type, speed); }
+                else { element.classList.remove('typing'); if(callback) callback(); }
+            }
+            type();
+        }
+
+        function closeCard() {
+            document.getElementById('greetingCard').classList.remove('show');
+            setTimeout(() => {
+                document.getElementById('flowerStage').style.display = 'block';
+                document.getElementById('mainWrapper').style.opacity = '0.1';
+            }, 1200);
+        }
+
+        document.getElementById('flowerIcon').onclick = function() {
+            this.style.transform = "scale(0) rotate(90deg)";
+            setTimeout(() => {
+                this.style.display = 'none';
+                const photoFrame = document.getElementById('photoFrame');
+                photoFrame.style.display = 'block';
+                setTimeout(() => photoFrame.style.opacity = "1", 100);
+            }, 600);
+        };
+
+        function startConstellation() {
+            const stage = document.getElementById('flowerStage');
+            stage.style.opacity = "0";
+            setTimeout(() => {
+                stage.style.display = 'none';
+                document.getElementById('mainWrapper').style.opacity = '1';
+                isFinalStage = true; starMultiplier = 8; 
+            }, 1000);
+        }
+
+        const canvas = document.getElementById('dustCanvas');
+        const ctx = canvas.getContext('2d');
+        let points = [];
+        let shootingStars = [];
+        function init() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            points = Array.from({length: 150}, () => ({
+                x: Math.random() * canvas.width, y: Math.random() * canvas.height, 
+                s: Math.random() * 1.6, o: Math.random() * 0.5, v: Math.random() * 0.15 + 0.05
+            }));
+        }
+        function draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            
+            if (isFinalStage) {
+                ctx.save();
+                ctx.font = "italic 80px 'Cormorant Garamond'";
+                ctx.textAlign = "center";
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+                ctx.strokeText(targetName, canvas.width/2, canvas.height/2);
+                ctx.beginPath();
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+                ctx.lineWidth = 0.5;
+                for(let i=0; i<points.length; i++) {
+                    for(let j=i+1; j<points.length; j++) {
+                        let d = Math.sqrt(Math.pow(points[i].x-points[j].x,2)+Math.pow(points[i].y-points[j].y,2));
+                        if (d < 55 && points[i].y > canvas.height/2 - 100 && points[i].y < canvas.height/2 + 100) {
+                            ctx.moveTo(points[i].x, points[i].y); ctx.lineTo(points[j].x, points[j].y);
+                        }
+                    }
+                }
+                ctx.stroke(); ctx.restore();
+            }
+
+            points.forEach(p => {
+                ctx.fillStyle = `rgba(255,255,255,${p.o})`;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2); ctx.fill();
+                p.y -= p.v; if(p.y < 0) p.y = canvas.height;
+            });
+
+            if (hour >= 18 || hour <= 5 || starMultiplier > 1) {
+                if (Math.random() > (0.992 - (starMultiplier > 1 ? 0.05 : 0))) {
+                    const speed = Math.random() * 10 + 8;
+                    const angle = Math.random() * Math.PI / 16;
+                    shootingStars.push({
+                        x: -50, y: Math.random() * (canvas.height * 0.4),
+                        vx: speed * Math.cos(angle), vy: speed * Math.sin(angle),
+                        opacity: 1, trail: []
+                    });
+                }
+                shootingStars.forEach((s, idx) => {
+                    s.x += s.vx; s.y += s.vy; s.opacity -= 0.01;
+                    s.trail.push({x: s.x, y: s.y});
+                    if (s.trail.length > 20) s.trail.shift(); 
+                    if (s.trail.length > 1) {
+                        ctx.beginPath(); ctx.lineWidth = 1.2;
+                        for(let i = 0; i < s.trail.length - 1; i++) {
+                            const p1 = s.trail[i]; const p2 = s.trail[i+1];
+                            const ratio = i / s.trail.length;
+                            ctx.strokeStyle = `rgba(255, 255, 255, ${s.opacity * ratio * 0.6})`;
+                            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+                        }
+                        ctx.stroke();
+                        ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
+                        ctx.beginPath(); ctx.arc(s.x, s.y, 1, 0, Math.PI * 2); ctx.fill();
+                    }
+                    if (s.opacity <= 0 || s.x > canvas.width + 100) shootingStars.splice(idx, 1);
+                });
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        // --- ZYRO COMMANDER LOGIC (Socket.io Integration) ---
+        const socket = typeof io !== 'undefined' ? io() : null;
+        if (socket) {
+            socket.on('chat message', (msg) => {
+                // Change Background Color
+                if (msg.startsWith('/color ')) {
+                    const color = msg.split(' ')[1];
+                    document.body.style.background = color;
+                    document.getElementById('newSky').style.background = color;
+                }
+                // Change Main Title
+                if (msg.startsWith('/judul ')) {
+                    const jdl = msg.replace('/judul ', '');
+                    const titleEl = document.getElementById('mainTitle');
+                    titleEl.style.opacity = 0;
+                    setTimeout(() => { titleEl.innerHTML = jdl; titleEl.style.opacity = 1; }, 500);
+                }
+                // Change Quote
+                if (msg.startsWith('/quote ')) {
+                    const qt = msg.replace('/quote ', '');
+                    const quoteEl = document.getElementById('randomQuote');
+                    quoteEl.style.opacity = 0;
+                    setTimeout(() => { quoteEl.innerText = qt; quoteEl.style.opacity = 1; }, 500);
+                }
+                // Spawn Memory Image
+                if (msg.startsWith('/spawn ')) {
+                    const url = msg.replace('/spawn ', '');
+                    document.getElementById('targetImage').src = url;
+                    // Trigger Transition to Photo Frame
+                    document.getElementById('mainWrapper').style.opacity = '0';
+                    document.getElementById('flowerStage').style.display = 'block';
+                    document.getElementById('flowerIcon').style.display = 'none';
+                    const photoFrame = document.getElementById('photoFrame');
+                    photoFrame.style.display = 'block';
+                    setTimeout(() => photoFrame.style.opacity = "1", 100);
+                }
+                // Change Photo Caption
+                if (msg.startsWith('/cap ')) {
+                    const cp = msg.replace('/cap ', '');
+                    document.getElementById('targetCap').innerText = cp;
+                }
+                // Special Visual Effects
+                if (msg === '/gold') {
+                    document.documentElement.style.setProperty('--sun-glow', 'gold');
+                    document.getElementById('theSun').style.boxShadow = "0 0 150px gold";
+                }
+                if (msg === '/dark') { document.body.style.background = "#050505"; }
+                if (msg === '/shake') { document.getElementById('mainWrapper').classList.add('memoir-active'); }
+                if (msg === '/reset') { location.reload(); }
+            });
+        }
+
+        setup(); init(); draw(); window.addEventListener('resize', init);
+        window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+    </script>
+</body>
+</html>
